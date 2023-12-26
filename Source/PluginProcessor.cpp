@@ -9,7 +9,7 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
-const std::string BitCrusherAudioProcessor::paramsNames[] = { "BitDepth", "Frequency", "Mix", "Volume" };
+const std::string BitCrusherAudioProcessor::paramsNames[] = { "BitDepth", "Frequency", "Noise", "Mix", "Volume" };
 
 //==============================================================================
 BitCrusherAudioProcessor::BitCrusherAudioProcessor()
@@ -26,8 +26,9 @@ BitCrusherAudioProcessor::BitCrusherAudioProcessor()
 {
 	bitDepthParameter  = apvts.getRawParameterValue(paramsNames[0]);
 	frequencyParameter = apvts.getRawParameterValue(paramsNames[1]);
-	mixParameter       = apvts.getRawParameterValue(paramsNames[2]);
-	volumeParameter    = apvts.getRawParameterValue(paramsNames[3]);
+	noiseParameter     = apvts.getRawParameterValue(paramsNames[2]);
+	mixParameter       = apvts.getRawParameterValue(paramsNames[3]);
+	volumeParameter    = apvts.getRawParameterValue(paramsNames[4]);
 }
 
 BitCrusherAudioProcessor::~BitCrusherAudioProcessor()
@@ -136,12 +137,15 @@ void BitCrusherAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
 	// Get params
 	const float bitDepth = bitDepthParameter->load();
 	const float frequency = frequencyParameter->load();
+	const float noise = noiseParameter->load();
 	const float mix = mixParameter->load();
 	const float volume = juce::Decibels::decibelsToGain(volumeParameter->load());
 
 	// Mics constants
 	const float bitLevels = powf(2.0, bitDepth);
+	const float quantizationStep = 1.0f / bitLevels;
 	const float mixInverse = 1.0f - mix;
+	const int randomThreshold = (int)(noise * 1000);
 	const int channels = getTotalNumOutputChannels();
 	const int samples = buffer.getNumSamples();
 	const int samplesFromFrequency = getSampleRate() / frequency;
@@ -167,8 +171,17 @@ void BitCrusherAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
 				holdValue = (int)(in * bitLevels) / bitLevels;
 			}
 
+			// Noise
+			const int randomValue = rand() % 1000;
+			float inNoise = holdValue;
+			
+			if (randomValue < randomThreshold)
+			{
+				inNoise = holdValue + quantizationStep * (randomValue % 2);
+			}
+
 			// Apply volume
-			channelBuffer[sample] = volume * (mix * holdValue + mixInverse * in);
+			channelBuffer[sample] = volume * (mix * inNoise + mixInverse * in);
 		}
 	}
 }
@@ -209,8 +222,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout BitCrusherAudioProcessor::cr
 
 	layout.add(std::make_unique<juce::AudioParameterFloat>(paramsNames[0], paramsNames[0], NormalisableRange<float>(  1.0f,    15.0f,  0.1f, 1.0f),     8.0f));
 	layout.add(std::make_unique<juce::AudioParameterFloat>(paramsNames[1], paramsNames[1], NormalisableRange<float>( 20.0f, 20000.0f,  1.0f, 0.3f), 10000.0f));
-	layout.add(std::make_unique<juce::AudioParameterFloat>(paramsNames[2], paramsNames[2], NormalisableRange<float>(  0.0f,     1.0f, 0.05f, 1.0f),     1.0f));
-	layout.add(std::make_unique<juce::AudioParameterFloat>(paramsNames[3], paramsNames[3], NormalisableRange<float>(-12.0f,    12.0f,  0.1f, 1.0f),     0.0f));
+	layout.add(std::make_unique<juce::AudioParameterFloat>(paramsNames[2], paramsNames[2], NormalisableRange<float>(  0.0f,     1.0f, 0.01f, 1.0f),     0.0f));
+	layout.add(std::make_unique<juce::AudioParameterFloat>(paramsNames[3], paramsNames[3], NormalisableRange<float>(  0.0f,     1.0f, 0.05f, 1.0f),     1.0f));
+	layout.add(std::make_unique<juce::AudioParameterFloat>(paramsNames[4], paramsNames[4], NormalisableRange<float>(-12.0f,    12.0f,  0.1f, 1.0f),     0.0f));
 
 	return layout;
 }

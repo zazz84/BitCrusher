@@ -68,6 +68,7 @@ private:
 
 	std::atomic<float>* bitDepthParameter = nullptr;
 	std::atomic<float>* frequencyParameter = nullptr;
+	std::atomic<float>* noiseParameter = nullptr;
 	std::atomic<float>* mixParameter = nullptr;
 	std::atomic<float>* volumeParameter = nullptr;
 
